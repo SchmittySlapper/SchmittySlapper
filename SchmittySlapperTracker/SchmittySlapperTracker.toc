@@ -2,7 +2,7 @@
 ## Title: Schmitty Slapper Tracker
 ## Notes: Health and power arcs around your character, plus a row of the abilities you just used. Both parts live in HUD Edit Mode. For WoW: Forever.
 ## Author: Colton
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: SchmittySlapperTrackerDB
 ## IconTexture: Interface\AddOns\SchmittySlapperTracker\Textures\Aura3
 
