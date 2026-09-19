@@ -1,8 +1,0 @@
-## Interface: 16001
-## Title: Schmitty Slapper Casts
-## Notes: A row of icons showing the abilities you just used, TrufiGCD style, for your own character on WoW: Forever.
-## Author: Colton
-## Version: 1.0.0
-## SavedVariables: SchmittySlapperCastsDB
-
-SchmittySlapperCasts.lua
