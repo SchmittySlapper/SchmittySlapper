@@ -49,8 +49,8 @@ local CLASS_POWER = { WARRIOR = 1, ROGUE = 3 } -- fallback if the power type its
 M.DEFAULTS = {
   enabled    = true,   -- /sst arcs off hides the arcs completely
   combatOnly = true,   -- true: arcs only in combat. false: always while alive
-  linger     = 3,      -- seconds the arcs stay up after combat ends (0 = hide at once)
-  fade       = 1,      -- seconds the arcs take to fade out
+  linger     = 1,      -- seconds the arcs stay up after combat ends (0 = hide at once)
+  fade       = 2,      -- seconds the arcs take to fade out
   exact      = true,   -- true: "1234/5678", false: "57%"
   alwaysText = false,  -- false: values only on mouseover
   scale      = 1.25,   -- WA group scale (times the master scale)
@@ -371,10 +371,10 @@ function M.RegisterEditMode(lib)
     { kind = lib.SettingType.Checkbox, name = "Only in combat", default = true,
       get = function() return db.combatOnly end,
       set = function(_, v) db.combatOnly = v and true or false UpdateVisibility() end },
-    { kind = lib.SettingType.Slider, name = "Stay after combat (seconds)", default = 3, minValue = 0, maxValue = 15, valueStep = 1,
+    { kind = lib.SettingType.Slider, name = "Stay after combat (seconds)", default = 1, minValue = 0, maxValue = 15, valueStep = 1,
       get = function() return db.linger end,
       set = function(_, v) db.linger = v end },
-    { kind = lib.SettingType.Slider, name = "Fade out (seconds)", default = 1, minValue = 0, maxValue = 5, valueStep = 0.5,
+    { kind = lib.SettingType.Slider, name = "Fade out (seconds)", default = 2, minValue = 0, maxValue = 5, valueStep = 0.5,
       get = function() return db.fade end,
       set = function(_, v) db.fade = v end },
     { kind = lib.SettingType.Checkbox, name = "Exact values (off = percent)", default = true,
@@ -414,8 +414,8 @@ function M.Help(prefix)
   print(prefix .. " on|off - show or hide the arcs completely")
   print(prefix .. " scale 1.25 - size of the arcs")
   print(prefix .. " combat on|off - only show in combat (off = always while alive)")
-  print(prefix .. " linger 3 - seconds the arcs stay up after combat ends (0 = at once)")
-  print(prefix .. " fade 1 - seconds the fade-out takes")
+  print(prefix .. " linger 1 - seconds the arcs stay up after combat ends (0 = at once)")
+  print(prefix .. " fade 2 - seconds the fade-out takes")
   print(prefix .. " exact on|off - exact values or percent")
   print(prefix .. " text mouseover|always - when the values show")
   print(prefix .. " x 0  and  y -16 - position from screen centre")

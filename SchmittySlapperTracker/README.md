@@ -36,8 +36,8 @@ log out to the character select screen and enable it.
 | `/sst arcs on` or `off` | Show or hide the arcs completely |
 | `/sst arcs scale 1.25` | Size of the arcs (1.25 = the WeakAura size) |
 | `/sst arcs combat on` or `off` | Only in combat (default) or always while alive |
-| `/sst arcs linger 3` | Seconds the arcs stay up after combat ends (0 fades at once) |
-| `/sst arcs fade 1` | Seconds the fade-out takes |
+| `/sst arcs linger 1` | Seconds the arcs stay up after combat ends (0 fades at once) |
+| `/sst arcs fade 2` | Seconds the fade-out takes |
 | `/sst arcs exact on` or `off` | Hover values as current/max or percent |
 | `/sst arcs text mouseover` or `always` | When the values show |
 | `/sst arcs x 0`, `/sst arcs y -16` | Offset from screen centre |

@@ -2,3 +2,6 @@ dist/
 *.zip
 Thumbs.db
 .DS_Store
+# personal sound clips are not redistributed
+SchmittySlapperGrave/Sounds/*.ogg
+SchmittySlapperGrave/Sounds/*.mp3

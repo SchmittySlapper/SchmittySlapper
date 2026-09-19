@@ -1,21 +1,24 @@
-# Publishes a new version: stamps the version into the TOC file, commits, tags,
-# pushes, zips the addon folder and creates the GitHub release.
+# Publishes a new version: stamps the version into the TOC files, commits, tags,
+# pushes, zips each addon on its own and creates the GitHub release with both
+# zips attached. The two addons are standalone: friends install either or both.
 # Usage: .\release.ps1 1.0.1
 param([Parameter(Mandatory = $true)][string]$Version)
 $ErrorActionPreference = "Stop"
 $Version = $Version.TrimStart("v")
 $tag = "v$Version"
 $root = $PSScriptRoot
-$name = "SchmittySlapperTracker"
+$addons = "SchmittySlapperTracker", "SchmittySlapperGrave"
 
 $gh = Get-Command gh -ErrorAction SilentlyContinue
 if ($gh) { $gh = $gh.Source }
 elseif (Test-Path "$env:LOCALAPPDATA\Programs\gh\bin\gh.exe") { $gh = "$env:LOCALAPPDATA\Programs\gh\bin\gh.exe" }
 else { throw "GitHub CLI not found. Install it or sign in with: gh auth login" }
 
-$toc = Join-Path $root "$name\$name.toc"
-$lines = (Get-Content $toc) -replace '^## Version: .*', "## Version: $Version"
-[IO.File]::WriteAllLines($toc, $lines)
+foreach ($name in $addons) {
+  $toc = Join-Path $root "$name\$name.toc"
+  $lines = (Get-Content $toc) -replace '^## Version: .*', "## Version: $Version"
+  [IO.File]::WriteAllLines($toc, $lines)
+}
 
 git -C $root add -A
 git -C $root commit -q -m "Release $tag"
@@ -26,9 +29,15 @@ git -C $root push origin $tag
 
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
-$zip = Join-Path $dist "SchmittySlapper-$tag.zip"
-if (Test-Path $zip) { Remove-Item $zip }
-Compress-Archive -Path (Join-Path $root $name) -DestinationPath $zip
+$zips = @()
 
-& $gh release create $tag $zip --title "Schmitty Slapper $tag" --generate-notes
-Write-Host "Released $tag"
+# one zip per addon
+foreach ($name in $addons) {
+  $zip = Join-Path $dist "$name-$tag.zip"
+  if (Test-Path $zip) { Remove-Item $zip }
+  Compress-Archive -Path (Join-Path $root $name) -DestinationPath $zip
+  $zips += $zip
+}
+
+& $gh release create $tag @zips --title "Schmitty Slapper $tag" --generate-notes
+Write-Host "Released $tag with $($zips.Count) zips"

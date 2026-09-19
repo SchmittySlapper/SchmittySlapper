@@ -163,13 +163,21 @@ end
 -- Settings saved by the single-part version lived at the top level; move them
 -- into the arcs table once.
 local function Migrate()
-  if db.arcs ~= nil then return end
-  db.arcs = {}
-  for _, k in ipairs({ "combatOnly", "linger", "fade", "exact", "alwaysText", "scale", "x", "y" }) do
-    if db[k] ~= nil then
-      db.arcs[k] = db[k]
-      db[k] = nil
+  if db.arcs == nil then
+    db.arcs = {}
+    for _, k in ipairs({ "combatOnly", "linger", "fade", "exact", "alwaysText", "scale", "x", "y" }) do
+      if db[k] ~= nil then
+        db.arcs[k] = db[k]
+        db[k] = nil
+      end
     end
+  end
+  -- 1.2: the linger/fade defaults changed from 3/1 to 1/2. Saved values that
+  -- still sit on the old defaults follow along; anything set by hand stays.
+  if db.arcs.defaultsVersion == nil then
+    if db.arcs.linger == 3 then db.arcs.linger = 1 end
+    if db.arcs.fade == 1 then db.arcs.fade = 2 end
+    db.arcs.defaultsVersion = 2
   end
 end
 

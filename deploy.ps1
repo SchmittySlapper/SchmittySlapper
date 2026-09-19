@@ -1,4 +1,4 @@
-# Copies the addon from this repository into the WoW: Forever beta AddOns folder.
+# Copies the addons from this repository into the WoW: Forever beta AddOns folder.
 # Usage: .\deploy.ps1            (default beta path)
 #        .\deploy.ps1 -AddOns "D:\Games\World of Warcraft\_classic_\Interface\AddOns"
 param(
@@ -10,12 +10,13 @@ if (-not (Test-Path $AddOns)) {
   exit 1
 }
 
-$name = "SchmittySlapperTracker"
-$src = Join-Path $PSScriptRoot $name
-$dst = Join-Path $AddOns $name
-if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
-Copy-Item -Recurse $src $dst
-Write-Host "deployed $name -> $dst"
+foreach ($name in "SchmittySlapperTracker", "SchmittySlapperGrave") {
+  $src = Join-Path $PSScriptRoot $name
+  $dst = Join-Path $AddOns $name
+  if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+  Copy-Item -Recurse $src $dst
+  Write-Host "deployed $name -> $dst"
+}
 
 $old = Join-Path $AddOns "SchmittySlapperCasts"
 if (Test-Path $old) {
@@ -23,4 +24,4 @@ if (Test-Path $old) {
   Write-Host "removed the old separate SchmittySlapperCasts folder"
 }
 
-Write-Host "Lua changes: /reload in game. New texture files: restart the game."
+Write-Host "Lua changes: /reload in game. New texture or sound files: restart the game."
