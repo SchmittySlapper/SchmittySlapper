@@ -2,7 +2,7 @@
 ## Title: Schmitty Slapper Grave
 ## Notes: Touch of the Grave tracker: plays a sound of your choice when the Undead racial procs and shows how much it healed. For WoW: Forever.
 ## Author: Colton
-## Version: 1.0.0
+## Version: 1.2.0
 ## SavedVariables: SchmittySlapperGraveDB
 ## OptionalDeps: LibSharedMedia-3.0
 
