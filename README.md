@@ -53,7 +53,7 @@ GPL-2.0. See `LICENSE`.
 Maintainer note. One command from this folder, with the GitHub CLI signed in:
 
 ```
-.elease.ps1 1.0.1
+.\release.ps1 1.0.1
 ```
 
 It stamps the version into both TOC files, commits, tags `v1.0.1`, pushes, zips both addon folders and publishes the zip on the Releases page. `deploy.ps1` copies both folders into the local beta AddOns directory for testing.
