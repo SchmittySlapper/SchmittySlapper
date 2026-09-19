@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Schmitty Slapper Tracker
+## Notes: Health and power arcs around your character. Addon port of the "Status Bars - Health/Mana/Rage/Energy" WeakAura (wago.io/YH_XvKsqX) for WoW: Forever.
+## Author: Colton
+## Version: 1.0.0
+## SavedVariables: SchmittySlapperTrackerDB
+## IconTexture: Interface\AddOns\SchmittySlapperTracker\Textures\Aura3
+
+SchmittySlapperTracker.lua
