@@ -49,6 +49,7 @@ local CLASS_POWER = { WARRIOR = 1, ROGUE = 3 } -- fallback if the power type its
 M.DEFAULTS = {
   enabled    = true,   -- /sst arcs off hides the arcs completely
   combatOnly = true,   -- true: arcs only in combat. false: always while alive
+  showOnHeal = true,   -- also come up while being healed out of combat (food, bandages)
   linger     = 1,      -- seconds the arcs stay up after combat ends (0 = hide at once)
   fade       = 2,      -- seconds the arcs take to fade out
   exact      = true,   -- true: "1234/5678", false: "57%"
@@ -65,7 +66,7 @@ local bars = {}
 local visible = false
 local editing = false
 local inCombat, isDead = false, false
-local lingerUntil
+local lingerUntil, healShowUntil
 local alpha, alphaTarget = 0, 0
 local forceShowUntil
 
@@ -121,6 +122,7 @@ local function ShouldShow()
   if forceShowUntil and GetTime() < forceShowUntil then return true end
   if isDead then return false end
   if inCombat then return true end
+  if healShowUntil and GetTime() < healShowUntil then return true end
   if lingerUntil and GetTime() < lingerUntil then return true end
   return not db.combatOnly
 end
@@ -234,12 +236,13 @@ end
 local function ApplyLayout()
   parent:SetScale(NS.MasterScale() * db.scale)
   parent:ClearAllPoints()
-  local pos = db.positions[NS.layoutName]
+  local pos = db.positions[NS.layoutName] or db.positions.default
   if pos then
     parent:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
   else
     parent:SetPoint("CENTER", UIParent, "CENTER", db.x, db.y)
   end
+  NS.Log("apply arcs " .. (pos and (pos.x .. "," .. pos.y) or "default") .. " layout=" .. tostring(NS.layoutName))
   for i = 1, #bars do
     bars[i].text:SetAlpha(db.alwaysText and 1 or 0)
   end
@@ -248,14 +251,7 @@ end
 -- Fallback drag-to-move for clients without Edit Mode: a blue box over the
 -- arcs while unlocked; the spot is saved as a CENTER offset.
 local function SaveMoverPosition()
-  local px, py = parent:GetCenter()
-  local ux, uy = UIParent:GetCenter()
-  local ps, us = parent:GetEffectiveScale(), UIParent:GetEffectiveScale()
-  db.positions[NS.layoutName] = {
-    point = "CENTER",
-    x = math.floor((px * ps - ux * us) / ps + 0.5),
-    y = math.floor((py * ps - uy * us) / ps + 0.5),
-  }
+  NS.CapturePosition(parent, db, "arcs mover")
   ApplyLayout()
 end
 
@@ -289,13 +285,22 @@ end
 -- Events
 ---------------------------------------------------------------------------
 local events = CreateFrame("Frame")
-events:SetScript("OnEvent", function(self, event)
+events:SetScript("OnEvent", function(self, event, unit, kind)
   if not db.enabled then return end
   if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
     UpdateHealth()
   elseif event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT"
       or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
     UpdatePower()
+  elseif event == "UNIT_COMBAT" then
+    -- a heal landing on us out of combat (food, bandage, someone else): show
+    -- the arcs, keep them while the ticks keep coming, then linger and fade
+    if db.showOnHeal and not inCombat and Plain(kind) == "HEAL" then
+      local hold = math.max(db.linger, 2.5)
+      healShowUntil = GetTime() + hold
+      C_Timer.After(hold + 0.05, UpdateVisibility)
+      UpdateVisibility()
+    end
   elseif event == "PLAYER_REGEN_DISABLED" then
     inCombat = true
     lingerUntil = nil
@@ -347,9 +352,19 @@ function M.Init(moduleDb)
   events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
   events:RegisterUnitEvent("UNIT_MAXPOWER", "player")
   events:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+  events:RegisterUnitEvent("UNIT_COMBAT", "player")
 end
 
 M.ApplyLayout = function() ApplyLayout() end
+M.GetFrame = function() return parent end
+M.Refresh = function() UpdateAll() end
+M.SetEnabled = function(on)
+  db.enabled = on and true or false
+  if db.enabled then UpdateAll() else UpdateVisibility() end
+end
+M.SavePosition = function(source)
+  if parent then NS.CapturePosition(parent, db, "arcs " .. (source or "")) end
+end
 
 function M.OnEditMode(on)
   editing = on
@@ -357,12 +372,28 @@ function M.OnEditMode(on)
 end
 
 function M.RegisterEditMode(lib)
-  lib:AddFrame(parent, function(_, layoutName, point, x, y)
-    db.positions[layoutName or "default"] = { point = point, x = x, y = y }
+  lib:AddFrame(parent, function()
+    NS.CapturePosition(parent, db, "arcs lib")
   end, { point = "CENTER", x = M.DEFAULTS.x, y = M.DEFAULTS.y }, "Schmitty Slapper Arcs")
 
   local selection = lib.frameSelections and lib.frameSelections[parent]
-  if selection then selection:SetFrameLevel(parent:GetFrameLevel() + 5) end
+  if selection then
+    selection:SetFrameLevel(parent:GetFrameLevel() + 5)
+    -- Drive the drag ourselves: move the real frame, then save where it landed.
+    selection:RegisterForDrag("LeftButton")
+    selection:SetScript("OnDragStart", function()
+      if InCombatLockdown() then return end
+      parent:SetMovable(true)
+      parent:StartMoving()
+    end)
+    selection:SetScript("OnDragStop", function(self)
+      parent:StopMovingOrSizing()
+      NS.CapturePosition(parent, db, "arcs drag")
+      ApplyLayout()
+      self:ClearAllPoints()
+      self:SetAllPoints(parent)
+    end)
+  end
 
   lib:AddFrameSettings(parent, {
     { kind = lib.SettingType.Slider, name = "Scale (%)", default = 125, minValue = 40, maxValue = 300, valueStep = 5,
@@ -371,6 +402,9 @@ function M.RegisterEditMode(lib)
     { kind = lib.SettingType.Checkbox, name = "Only in combat", default = true,
       get = function() return db.combatOnly end,
       set = function(_, v) db.combatOnly = v and true or false UpdateVisibility() end },
+    { kind = lib.SettingType.Checkbox, name = "Also show while healing", default = true,
+      get = function() return db.showOnHeal end,
+      set = function(_, v) db.showOnHeal = v and true or false end },
     { kind = lib.SettingType.Slider, name = "Stay after combat (seconds)", default = 1, minValue = 0, maxValue = 15, valueStep = 1,
       get = function() return db.linger end,
       set = function(_, v) db.linger = v end },
@@ -385,6 +419,14 @@ function M.RegisterEditMode(lib)
       set = function(_, v) db.alwaysText = v and true or false ApplyLayout() end },
   })
 
+  if lib.AddFrameSettingsButtons then
+    lib:AddFrameSettingsButtons(parent, {
+      { text = "Save position", click = function()
+        NS.CapturePosition(parent, db, "arcs save button")
+        NS.AnnounceSaved("arcs", db)
+      end },
+    })
+  end
   NS.AddResizeGrip(parent, function() return db.scale end, function(s) db.scale = s ApplyLayout() end)
 end
 
@@ -414,6 +456,7 @@ function M.Help(prefix)
   print(prefix .. " on|off - show or hide the arcs completely")
   print(prefix .. " scale 1.25 - size of the arcs")
   print(prefix .. " combat on|off - only show in combat (off = always while alive)")
+  print(prefix .. " heal on|off - also show while being healed out of combat (food, bandages)")
   print(prefix .. " linger 1 - seconds the arcs stay up after combat ends (0 = at once)")
   print(prefix .. " fade 2 - seconds the fade-out takes")
   print(prefix .. " exact on|off - exact values or percent")
@@ -446,6 +489,9 @@ function M.Command(cmd, arg)
     if arg == "on" or arg == "off" then db.combatOnly = (arg == "on") end
     P("arcs only in combat: " .. NS.OnOff(db.combatOnly) .. (db.combatOnly and "" or " (always shown while alive)"))
     UpdateVisibility()
+  elseif cmd == "heal" then
+    if arg == "on" or arg == "off" then db.showOnHeal = (arg == "on") end
+    P("arcs also show while healing: " .. NS.OnOff(db.showOnHeal))
   elseif cmd == "linger" then
     local n = tonumber(arg)
     if n and n >= 0 and n <= 600 then db.linger = n end

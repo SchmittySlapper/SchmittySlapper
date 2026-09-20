@@ -19,6 +19,10 @@ whenever you are alive instead.
 Install: copy this folder to `World of Warcraft\_classic_beta_\Interface\AddOns\SchmittySlapperTracker`,
 log out to the character select screen and enable it.
 
+## Options panel
+
+Type /sst on its own (or open Esc > Options > AddOns > Schmitty Slapper Tracker) for a panel with everything: master size, Edit Mode and preview buttons, then the arcs (on/off, only in combat, also show while healing, stay-after-combat and fade-out sliders, exact values, always show values, size) and the ability row (on/off, tooltips, size, icon size, icons kept, spacing, seconds before fading, direction).
+
 ## Commands
 
 `/sst` (or `/slapper`). Arc commands work with or without the word `arcs`; `/ssc` is short for `/sst casts`.
@@ -36,6 +40,7 @@ log out to the character select screen and enable it.
 | `/sst arcs on` or `off` | Show or hide the arcs completely |
 | `/sst arcs scale 1.25` | Size of the arcs (1.25 = the WeakAura size) |
 | `/sst arcs combat on` or `off` | Only in combat (default) or always while alive |
+| `/sst arcs heal on` or `off` | Also show while being healed out of combat, e.g. food or bandages (default on) |
 | `/sst arcs linger 1` | Seconds the arcs stay up after combat ends (0 fades at once) |
 | `/sst arcs fade 2` | Seconds the fade-out takes |
 | `/sst arcs exact on` or `off` | Hover values as current/max or percent |

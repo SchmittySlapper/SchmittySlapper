@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: Schmitty Slapper Edit Mode (library)
+## Notes: Shared support for the Schmitty Slapper addons: HUD Edit Mode integration and settings persistence. Loaded by them when needed; nothing to configure.
+## Author: Colton
+## Version: 1.0.0
+## LoadOnDemand: 1
+
+LoadEditMode.lua
+LibStub\LibStub.lua
+LibEditMode\embed.xml
+Persist.lua

@@ -1,6 +1,7 @@
 # Publishes a new version: stamps the version into the TOC files, commits, tags,
 # pushes, zips each addon on its own and creates the GitHub release with both
 # zips attached. The two addons are standalone: friends install either or both.
+# Each zip also carries the shared SchmittySlapperEditMode helper folder.
 # Usage: .\release.ps1 1.0.1
 param([Parameter(Mandatory = $true)][string]$Version)
 $ErrorActionPreference = "Stop"
@@ -35,7 +36,7 @@ $zips = @()
 foreach ($name in $addons) {
   $zip = Join-Path $dist "$name-$tag.zip"
   if (Test-Path $zip) { Remove-Item $zip }
-  Compress-Archive -Path (Join-Path $root $name) -DestinationPath $zip
+  Compress-Archive -Path (Join-Path $root $name), (Join-Path $root "SchmittySlapperEditMode") -DestinationPath $zip
   $zips += $zip
 }
 

@@ -278,12 +278,13 @@ local function ApplyLayout()
   parent:SetScale(NS.MasterScale() * db.scale)
   parent:SetSize(db.count * db.size + (db.count - 1) * db.gap, db.size)
   parent:ClearAllPoints()
-  local pos = db.positions[NS.layoutName]
+  local pos = db.positions[NS.layoutName] or db.positions.default
   if pos then
     parent:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
   else
     parent:SetPoint("CENTER", UIParent, "CENTER", db.x, db.y)
   end
+  NS.Log("apply casts " .. (pos and (pos.x .. "," .. pos.y) or "default") .. " layout=" .. tostring(NS.layoutName))
   for i = 1, #active do
     active[i]:SetSize(db.size, db.size)
     active[i]:EnableMouse(db.tooltip)
@@ -298,14 +299,7 @@ end
 
 -- Fallback drag-to-move for clients without Edit Mode.
 local function SaveMoverPosition()
-  local px, py = parent:GetCenter()
-  local ux, uy = UIParent:GetCenter()
-  local ps, us = parent:GetEffectiveScale(), UIParent:GetEffectiveScale()
-  db.positions[NS.layoutName] = {
-    point = "CENTER",
-    x = math.floor((px * ps - ux * us) / ps + 0.5),
-    y = math.floor((py * ps - uy * us) / ps + 0.5),
-  }
+  NS.CapturePosition(parent, db, "casts mover")
   ApplyLayout()
 end
 
@@ -359,6 +353,21 @@ function M.Init(moduleDb)
 end
 
 M.ApplyLayout = function() ApplyLayout() end
+M.GetFrame = function() return parent end
+M.Refresh = function() ApplyLayout() end
+M.SetEnabled = function(on)
+  db.enabled = on and true or false
+  if db.enabled then
+    parent:Show()
+  else
+    ClearIcons()
+    if mover then mover:Hide() end
+    if not editing then parent:Hide() end
+  end
+end
+M.SavePosition = function(source)
+  if parent then NS.CapturePosition(parent, db, "casts " .. (source or "")) end
+end
 
 function M.OnEditMode(on)
   editing = on
@@ -370,12 +379,28 @@ function M.OnEditMode(on)
 end
 
 function M.RegisterEditMode(lib)
-  lib:AddFrame(parent, function(_, layoutName, point, x, y)
-    db.positions[layoutName or "default"] = { point = point, x = x, y = y }
+  lib:AddFrame(parent, function()
+    NS.CapturePosition(parent, db, "casts lib")
   end, { point = "CENTER", x = M.DEFAULTS.x, y = M.DEFAULTS.y }, "Schmitty Slapper Abilities")
 
   local selection = lib.frameSelections and lib.frameSelections[parent]
-  if selection then selection:SetFrameLevel(parent:GetFrameLevel() + 5) end
+  if selection then
+    selection:SetFrameLevel(parent:GetFrameLevel() + 5)
+    -- Drive the drag ourselves: move the real frame, then save where it landed.
+    selection:RegisterForDrag("LeftButton")
+    selection:SetScript("OnDragStart", function()
+      if InCombatLockdown() then return end
+      parent:SetMovable(true)
+      parent:StartMoving()
+    end)
+    selection:SetScript("OnDragStop", function(self)
+      parent:StopMovingOrSizing()
+      NS.CapturePosition(parent, db, "casts drag")
+      ApplyLayout()
+      self:ClearAllPoints()
+      self:SetAllPoints(parent)
+    end)
+  end
 
   lib:AddFrameSettings(parent, {
     { kind = lib.SettingType.Slider, name = "Scale (%)", default = 100, minValue = 40, maxValue = 300, valueStep = 5,
@@ -402,6 +427,14 @@ function M.RegisterEditMode(lib)
       set = function(_, v) db.tooltip = v and true or false ApplyLayout() end },
   })
 
+  if lib.AddFrameSettingsButtons then
+    lib:AddFrameSettingsButtons(parent, {
+      { text = "Save position", click = function()
+        NS.CapturePosition(parent, db, "ability row save button")
+        NS.AnnounceSaved("ability row", db)
+      end },
+    })
+  end
   NS.AddResizeGrip(parent, function() return db.scale end, function(s) db.scale = s ApplyLayout() end)
 end
 

@@ -59,11 +59,15 @@ local DEFAULTS = {
   positions = {},            -- per Edit Mode layout: { point, x, y }
   stats     = { count = 0, total = 0, best = 0 },
   customFiles = {},          -- files you picked with /ssg sound file, listed in the options panel
+  macroMirror = true,        -- keep settings in a macro, since Forever never reads saved variables back
   debug     = false,
 }
 
 local db
 local frame, mover, grip
+local CapturePosition, ApplyLayout -- defined with the layout code below
+local SyncToMacro, RestoreFromMacro, StartMirror -- defined with the persistence code below
+local svLoaded = false
 local editing = false
 local session = { count = 0, total = 0, best = 0, plain = true }
 local pendingUntil, lastHealTime, lastHealAmount, lastSound = nil, nil, nil, 0
@@ -445,6 +449,19 @@ local events = CreateFrame("Frame")
 events:SetScript("OnEvent", function(self, event, unit, a2, a3, a4, a5)
   if event == "PLAYER_ENTERING_WORLD" then
     HookCombatLog()
+    ApplyLayout()
+    if RestoreFromMacro then RestoreFromMacro() end
+    if StartMirror then StartMirror() end
+    return
+  elseif event == "PLAYER_LOGOUT" then
+    if CapturePosition then CapturePosition() end
+    if SyncToMacro then SyncToMacro(true) end
+    return
+  elseif event == "UPDATE_MACROS" then
+    if RestoreFromMacro then RestoreFromMacro() end
+    return
+  elseif event == "PLAYER_REGEN_ENABLED" then
+    if SyncToMacro then SyncToMacro() end
     return
   end
   if not db.enabled then return end
@@ -475,15 +492,33 @@ end)
 ---------------------------------------------------------------------------
 -- Frame, layout, Edit Mode
 ---------------------------------------------------------------------------
-local function ApplyLayout()
+function ApplyLayout()
   frame:SetScale(db.scale)
   frame:ClearAllPoints()
-  local pos = db.positions[NS.layoutName or "default"]
+  local pos = db.positions[NS.layoutName or "default"] or db.positions.default
   if pos then
     frame:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
   else
     frame:SetPoint("CENTER", UIParent, "CENTER", db.x, db.y)
   end
+end
+
+-- Saves the current spot as a CENTER offset in the frame's own scale, under
+-- the active Edit Mode layout and as the last known position. Called after
+-- drags, when Edit Mode closes, and at logout or reload.
+function CapturePosition()
+  if not frame then return end
+  local px, py = frame:GetCenter()
+  if not px then return end
+  local ux, uy = UIParent:GetCenter()
+  local ps, us = frame:GetEffectiveScale(), UIParent:GetEffectiveScale()
+  local pos = {
+    point = "CENTER",
+    x = math.floor((px * ps - ux * us) / ps + 0.5),
+    y = math.floor((py * ps - uy * us) / ps + 0.5),
+  }
+  db.positions[NS.layoutName or "default"] = pos
+  db.positions.default = pos
 end
 
 local function CreateDisplay()
@@ -527,8 +562,10 @@ local function ShowSample()
 end
 
 local function SetEditing(on)
+  if on == editing then return end -- Edit Mode is hidden during login too
   editing = on
   if on then
+    ApplyLayout() -- restore the saved spot in case something moved the frame since login
     ShowSample()
     fadeAt = nil
     alpha, alphaTarget = 1, 1
@@ -536,6 +573,7 @@ local function SetEditing(on)
     frame:Show()
     if grip then grip:Show() end
   else
+    CapturePosition()
     if grip then grip:Hide() end
     UpdateTotals()
     alpha, alphaTarget = 0, 0
@@ -604,11 +642,27 @@ local function WireEditMode()
   if not l then return end
   l:RegisterCallback("enter", function() SetEditing(true) end)
   l:RegisterCallback("exit", function() SetEditing(false) end)
-  l:AddFrame(frame, function(_, layoutName, point, x, y)
-    db.positions[layoutName or "default"] = { point = point, x = x, y = y }
+  l:AddFrame(frame, function()
+    CapturePosition()
   end, { point = "CENTER", x = DEFAULTS.x, y = DEFAULTS.y }, "Schmitty Slapper Grave")
   local selection = l.frameSelections and l.frameSelections[frame]
-  if selection then selection:SetFrameLevel(frame:GetFrameLevel() + 5) end
+  if selection then
+    selection:SetFrameLevel(frame:GetFrameLevel() + 5)
+    -- Drive the drag ourselves: move the real frame, then save where it landed.
+    selection:RegisterForDrag("LeftButton")
+    selection:SetScript("OnDragStart", function()
+      if InCombatLockdown() then return end
+      frame:SetMovable(true)
+      frame:StartMoving()
+    end)
+    selection:SetScript("OnDragStop", function(self)
+      frame:StopMovingOrSizing()
+      CapturePosition()
+      ApplyLayout()
+      self:ClearAllPoints()
+      self:SetAllPoints(frame)
+    end)
+  end
   l:AddFrameSettings(frame, {
     { kind = l.SettingType.Checkbox, name = "Enabled", default = true,
       get = function() return db.enabled end,
@@ -645,6 +699,11 @@ local function WireEditMode()
   })
   if l.AddFrameSettingsButtons then
     l:AddFrameSettingsButtons(frame, {
+      { text = "Save position", click = function()
+        CapturePosition()
+        local pos = db.positions.default
+        if pos then Print("position saved: x " .. pos.x .. ", y " .. pos.y) end
+      end },
       { text = "Test sound", click = function() PlayChoice() end },
       { text = "Reset totals", click = function() db.stats = { count = 0, total = 0, best = 0 } session = { count = 0, total = 0, best = 0, plain = true } UpdateTotals() end },
     })
@@ -671,14 +730,7 @@ local function SetUnlocked(unlocked)
     mover:SetScript("OnDragStart", function() frame:StartMoving() end)
     mover:SetScript("OnDragStop", function()
       frame:StopMovingOrSizing()
-      local px, py = frame:GetCenter()
-      local ux, uy = UIParent:GetCenter()
-      local ps, us = frame:GetEffectiveScale(), UIParent:GetEffectiveScale()
-      db.positions[NS.layoutName or "default"] = {
-        point = "CENTER",
-        x = math.floor((px * ps - ux * us) / ps + 0.5),
-        y = math.floor((py * ps - uy * us) / ps + 0.5),
-      }
+      CapturePosition()
       ApplyLayout()
     end)
     frame:SetMovable(true)
@@ -820,9 +872,104 @@ local function CopyDefaults(dst, src)
   end
 end
 
+-- The Edit Mode library lives in a separate load-on-demand addon
+-- (SchmittySlapperEditMode) so nothing else gets loaded in the middle of this
+-- addon's own load: doing that left the saved settings unread at login.
+-- Called from ADDON_LOADED, after the saved settings are in.
+---------------------------------------------------------------------------
+-- Settings persistence on WoW: Forever. The beta client never reads its own
+-- SavedVariables back (Blizzard bug), so settings are mirrored into a general
+-- macro named SSGsave1 (body: "/ssg restore ...") and restored at login.
+---------------------------------------------------------------------------
+local MACRO_PREFIX, MACRO_CMD = "SSGsave", "/ssg"
+local lastPayload, pendingSync, restored, warnedMacro, ticker
+
+local function Snapshot()
+  local t = {
+    e = db.enabled, t = db.showText, L = db.showLabel, A = db.showAmount, S = db.showSession,
+    F = db.showLifetime, p = db.statProcs, h = db.statHealed, b = db.statBest,
+    H = db.hold, s = db.scale, d = db.detect, o = db.sound, c = db.channel,
+    n = db.stats.count or 0, T = db.stats.total or 0, B = db.stats.best or 0,
+  }
+  local pos = db.positions.default
+  if pos then t.X, t.Y = pos.x, pos.y end
+  if #db.customFiles > 0 then t.f = table.concat(db.customFiles, "|") end
+  local ids = {}
+  for id in pairs(db.spellIDs) do ids[#ids + 1] = id end
+  table.sort(ids)
+  t.I = table.concat(ids, ".")
+  return t
+end
+
+local function ApplySnapshot(t)
+  local function num(k, key, tbl) tbl = tbl or db local v = tonumber(t[k]) if v then tbl[key] = v end end
+  local function bool(k, key) if t[k] == "1" then db[key] = true elseif t[k] == "0" then db[key] = false end end
+  local function str(k, key) if t[k] and t[k] ~= "" then db[key] = t[k] end end
+  bool("e", "enabled") bool("t", "showText") bool("L", "showLabel") bool("A", "showAmount") bool("S", "showSession")
+  bool("F", "showLifetime") bool("p", "statProcs") bool("h", "statHealed") bool("b", "statBest")
+  num("H", "hold") num("s", "scale") str("d", "detect") str("o", "sound") str("c", "channel")
+  num("n", "count", db.stats) num("T", "total", db.stats) num("B", "best", db.stats)
+  if tonumber(t.X) and tonumber(t.Y) then db.positions.default = { point = "CENTER", x = tonumber(t.X), y = tonumber(t.Y) } end
+  if t.f then
+    db.customFiles = {}
+    for f in t.f:gmatch("[^|]+") do db.customFiles[#db.customFiles + 1] = f end
+  end
+  if t.I then
+    db.spellIDs = {}
+    for id in t.I:gmatch("[^.]+") do if tonumber(id) then db.spellIDs[tonumber(id)] = true end end
+  end
+end
+
+function SyncToMacro(force)
+  local P = SchmittySlapperPersist
+  if not P or not db or db.macroMirror == false or svLoaded then return end
+  if InCombatLockdown() then pendingSync = true return end
+  local payload = P.Encode(Snapshot())
+  if payload == lastPayload and not force then return end
+  local ok, why = P.Write(MACRO_PREFIX, MACRO_CMD, payload)
+  if ok then
+    lastPayload = payload
+    pendingSync = nil
+    db.stamp = time()
+  elseif why == "combat" then
+    pendingSync = true
+  elseif not warnedMacro then
+    warnedMacro = true
+    Print("could not save settings into a macro (" .. tostring(why) .. "). Free a slot in the General macros tab.")
+  end
+end
+
+function RestoreFromMacro()
+  local P = SchmittySlapperPersist
+  if restored or not P or svLoaded or db.macroMirror == false then return end
+  local payload = P.Read(MACRO_PREFIX, MACRO_CMD)
+  if not payload then
+    if GetNumMacros and GetNumMacros() > 0 then restored = true end
+    return
+  end
+  restored = true
+  ApplySnapshot(P.Decode(payload))
+  lastPayload = payload
+  UpdateLines()
+  ApplyLayout()
+end
+
+function StartMirror()
+  if ticker or not C_Timer or not C_Timer.NewTicker then return end
+  ticker = C_Timer.NewTicker(5, function() SyncToMacro() end)
+end
+
+local function LoadEditModeLibs()
+  local load = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+  if not load then return end
+  if not EditModeManagerFrame then pcall(load, "Blizzard_EditMode") end
+  pcall(load, "SchmittySlapperEditMode")
+end
+
 local function Init()
   SchmittySlapperGraveDB = SchmittySlapperGraveDB or {}
   db = SchmittySlapperGraveDB
+  svLoaded = db.stamp ~= nil
   -- Lightsaber became the default sound; a save still on the first default follows.
   if db.defaultsVersion == nil then
     if db.sound == "raidwarning" then db.sound = "lightsaber" end
@@ -838,6 +985,7 @@ local function Init()
   CreateDisplay()
   ApplyLayout()
   UpdateLines()
+  LoadEditModeLibs()
   WireEditMode()
   CreateOptionsPanel()
 
@@ -846,6 +994,9 @@ local function Init()
   events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
   events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
   events:RegisterEvent("PLAYER_ENTERING_WORLD")
+  events:RegisterEvent("PLAYER_LOGOUT")
+  events:RegisterEvent("UPDATE_MACROS")
+  events:RegisterEvent("PLAYER_REGEN_ENABLED")
   pcall(events.RegisterEvent, events, "COMBAT_LOG_MESSAGE")
   HookCombatLog()
 end
@@ -879,6 +1030,7 @@ local function Help()
   print("  /ssg spell <id> - add or remove a spell id to watch; /ssg spell list")
   print("  /ssg stats - session and lifetime totals; /ssg resetstats")
   print("  /ssg test - fake a proc")
+  print("  /ssg macro on|off - keep settings in a macro named SSGsave1 (Forever never reads saved variables back)")
   print("  /ssg debug on|off - print the raw events in chat")
 end
 
@@ -939,6 +1091,21 @@ SlashCmdList.SCHMITTYSLAPPERGRAVE = function(msg)
       SetUnlocked(false)
       Print("locked")
     end
+  elseif cmd == "save" then
+    CapturePosition()
+    local pos = db.positions.default
+    if pos then Print("position saved: x " .. pos.x .. ", y " .. pos.y) end
+  elseif cmd == "restore" then
+    if arg ~= "" and SchmittySlapperPersist then
+      ApplySnapshot(SchmittySlapperPersist.Decode(arg))
+      UpdateLines()
+      ApplyLayout()
+      Print("settings restored")
+    end
+  elseif cmd == "macro" then
+    if arg == "on" or arg == "off" then db.macroMirror = (arg == "on") end
+    Print("settings macro mirror " .. OnOff(db.macroMirror ~= false) .. " (macro SSGsave1 in the General tab; leave it alone)")
+    if db.macroMirror ~= false then SyncToMacro(true) end
   elseif cmd == "x" or cmd == "y" then
     local n = tonumber(arg)
     local key = NS.layoutName or "default"

@@ -6,7 +6,4 @@
 ## SavedVariables: SchmittySlapperGraveDB
 ## OptionalDeps: LibSharedMedia-3.0
 
-Libs\LoadEditMode.lua
-Libs\LibStub\LibStub.lua
-Libs\LibEditMode\embed.xml
 Grave.lua

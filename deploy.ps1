@@ -10,7 +10,7 @@ if (-not (Test-Path $AddOns)) {
   exit 1
 }
 
-foreach ($name in "SchmittySlapperTracker", "SchmittySlapperGrave") {
+foreach ($name in "SchmittySlapperEditMode", "SchmittySlapperTracker", "SchmittySlapperGrave") {
   $src = Join-Path $PSScriptRoot $name
   $dst = Join-Path $AddOns $name
   if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }

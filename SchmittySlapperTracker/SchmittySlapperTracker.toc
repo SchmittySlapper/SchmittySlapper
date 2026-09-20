@@ -6,9 +6,6 @@
 ## SavedVariables: SchmittySlapperTrackerDB
 ## IconTexture: Interface\AddOns\SchmittySlapperTracker\Textures\Aura3
 
-Libs\LoadEditMode.lua
-Libs\LibStub\LibStub.lua
-Libs\LibEditMode\embed.xml
 Core.lua
 Arcs.lua
 Casts.lua
