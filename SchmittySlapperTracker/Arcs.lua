@@ -205,8 +205,9 @@ local function CreateBar(name, xOffset, texture, textX)
   f:SetOrientation("VERTICAL") -- WA "VERTICAL": fills from the bottom up
   f:SetMinMaxValues(0, 1)
   f:SetValue(1)
-  f:EnableMouse(true)
-  f:SetMouseClickEnabled(false) -- hover only; clicks and camera drags go through
+  -- Never mouse-enabled: on Forever even a hover-only frame swallows the
+  -- clicks meant for the enemy behind it. Hover text comes from the cursor
+  -- poll started in Init, which needs no mouse interaction at all.
 
   f.bg = f:CreateTexture(nil, "BACKGROUND")
   f.bg:SetTexture(texture)
@@ -223,11 +224,6 @@ local function CreateBar(name, xOffset, texture, textX)
   text:SetPoint("CENTER", parent, "CENTER", textX, 0)
   text:SetAlpha(db.alwaysText and 1 or 0)
   f.text = text
-
-  f:SetScript("OnEnter", function() text:SetAlpha(1) end)
-  f:SetScript("OnLeave", function()
-    if not db.alwaysText then text:SetAlpha(0) end
-  end)
 
   bars[#bars + 1] = f
   return f
@@ -339,6 +335,15 @@ function M.Init(moduleDb)
   SetColors(powerBar, POWER_DEFAULT.fg, POWER_DEFAULT.bg)
 
   ApplyLayout()
+
+  -- Hover values without catching the mouse: IsMouseOver is pure geometry,
+  -- so the text can follow the cursor while the bars stay click-through.
+  C_Timer.NewTicker(0.1, function()
+    if db.alwaysText or not parent:IsShown() then return end
+    for i = 1, #bars do
+      bars[i].text:SetAlpha(bars[i]:IsMouseOver() and 1 or 0)
+    end
+  end)
 
   events:RegisterEvent("PLAYER_ENTERING_WORLD")
   events:RegisterEvent("PLAYER_REGEN_DISABLED")

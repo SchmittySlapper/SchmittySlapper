@@ -51,7 +51,7 @@ Type /sst on its own (or open Esc > Options > AddOns > Schmitty Slapper Tracker)
 |---|---|
 | `/sst casts on` or `off` | Show or hide the row completely |
 | `/sst casts scale 1` | Size of the whole row |
-| `/sst casts tooltip on` or `off` | Spell tooltip when hovering an icon (off also stops icons catching the mouse) |
+| `/sst casts tooltip on` or `off` | Spell tooltip when hovering an icon (the icons never block clicks either way) |
 | `/sst casts size 36`, `count 6`, `gap 4` | Icon size, how many, spacing |
 | `/sst casts hold 4` | Seconds before an icon fades |
 | `/sst casts direction right` or `left` | Which way older icons move |

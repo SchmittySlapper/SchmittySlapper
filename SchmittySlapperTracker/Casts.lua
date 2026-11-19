@@ -149,9 +149,8 @@ local function CreateIcon()
   local f = CreateFrame("Frame", nil, parent)
   f:SetSize(db.size, db.size)
   f:SetFrameLevel(parent:GetFrameLevel() + 1)
-  f:EnableMouse(db.tooltip)
-  f:SetMouseClickEnabled(false) -- tooltip on hover; clicks go through to the world
-
+  -- Never mouse-enabled: on Forever even a hover-only frame swallows world
+  -- clicks. Tooltips come from the cursor poll started in Init instead.
   f.border = f:CreateTexture(nil, "BACKGROUND")
   f.border:SetColorTexture(0, 0, 0, 0.8)
   f.border:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1)
@@ -166,8 +165,6 @@ local function CreateIcon()
   f.cross:SetTexture(CROSS)
   f.cross:Hide()
 
-  f:SetScript("OnEnter", OnEnter)
-  f:SetScript("OnLeave", OnLeave)
   f:Hide()
   return f
 end
@@ -184,8 +181,6 @@ local function AddIcon(spellID, icon)
   f.slot, f.pos = 0, -1
   f.alpha, f.born, f.dying = 0, GetTime(), nil
   f:SetSize(db.size, db.size)
-  f:EnableMouse(db.tooltip)
-  f:SetMouseClickEnabled(false)
   f:SetAlpha(0)
   PlaceIcon(f)
   f:Show()
@@ -287,13 +282,7 @@ local function ApplyLayout()
   NS.Log("apply casts " .. (pos and (pos.x .. "," .. pos.y) or "default") .. " layout=" .. tostring(NS.layoutName))
   for i = 1, #active do
     active[i]:SetSize(db.size, db.size)
-    active[i]:EnableMouse(db.tooltip)
-    active[i]:SetMouseClickEnabled(false)
     PlaceIcon(active[i])
-  end
-  for i = 1, #pool do
-    pool[i]:EnableMouse(db.tooltip)
-    pool[i]:SetMouseClickEnabled(false)
   end
 end
 
@@ -344,6 +333,23 @@ function M.Init(moduleDb)
   parent.editModeName = "Schmitty Slapper Abilities"
   ApplyLayout()
   if not db.enabled then parent:Hide() end
+
+  -- Hover tooltips without catching the mouse: poll the cursor against the
+  -- visible icons (pure geometry), so clicks always reach the world.
+  local hoverIcon
+  C_Timer.NewTicker(0.15, function()
+    local over
+    if db.tooltip and parent:IsShown() then
+      for i = 1, #active do
+        if active[i]:IsMouseOver() then over = active[i] break end
+      end
+    end
+    if over ~= hoverIcon then
+      if hoverIcon then OnLeave() end
+      hoverIcon = over
+      if hoverIcon then OnEnter(hoverIcon) end
+    end
+  end)
 
   events:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
   events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")

@@ -339,7 +339,7 @@ local function CreateOptionsPanel()
 
   Header("Ability row")
   Checkbox("CASTS_ENABLED", C, casts.DEFAULTS, "enabled", "Show the ability row", "Turn the row off entirely.", casts.SetEnabled)
-  Checkbox("CASTS_TOOLTIP", C, casts.DEFAULTS, "tooltip", "Spell tooltips on hover", "Off also stops the icons catching the mouse.", casts.ApplyLayout)
+  Checkbox("CASTS_TOOLTIP", C, casts.DEFAULTS, "tooltip", "Spell tooltips on hover", "The icons never catch the mouse; clicks always pass through to the game world.", casts.ApplyLayout)
   Slider("CASTS_SCALE", C, casts.DEFAULTS, "scale", "Row size", 40, 300, 5, pct, "Size of the whole row.", casts.ApplyLayout, 100)
   Slider("CASTS_SIZE", C, casts.DEFAULTS, "size", "Icon size", 16, 64, 2, plain, "Icon size in pixels.", casts.ApplyLayout)
   Slider("CASTS_COUNT", C, casts.DEFAULTS, "count", "Icons kept", 1, 12, 1, plain, "How many icons stay on screen.", casts.ApplyLayout)
